@@ -5,6 +5,7 @@ from typing import Union, OrderedDict
 from dotenv import load_dotenv
 # Load the .env file if it exists
 load_dotenv()
+import asyncio
 
 sys.path.insert(0, os.getcwd())
 # must come before ANY torch or fastai imports
@@ -26,6 +27,7 @@ import datetime
 
 from bson.objectid import ObjectId
 from my_scripts.upload_to_r2 import CloudflareR2Service
+from my_scripts.prepare_config import prepare_config
 import time
 
 def print_end_message(jobs_completed, jobs_failed):
@@ -43,10 +45,16 @@ def print_end_message(jobs_completed, jobs_failed):
 
 
 def main():
-    parser = argparse.ArgumentParser()
-
     taskId = os.getenv("TASK_ID")
 
+    try:
+        asyncio.run(prepare_config(taskId=taskId))
+    except Exception as e:
+            print(f"Error preparing config: {e}")
+            raise e
+
+
+    parser = argparse.ArgumentParser()
 
     # require at lease one config file
     parser.add_argument(

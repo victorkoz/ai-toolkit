@@ -1,14 +1,11 @@
 import yaml
 import os
-from pymongo import MongoClient
-from dotenv import load_dotenv
 import asyncio
 import aiohttp
 # Load the .env file if it exists
 from bson.objectid import ObjectId
 
-load_dotenv()
-from connect_mongo import get_client
+from my_scripts.connect_mongo import get_client
 
 # Define the YAML structure as a Python dictionary
 config_data = {
@@ -28,7 +25,7 @@ config_data = {
         },
         "save": {
           "dtype": "float16",
-          "save_every": 250,
+          "save_every": 10,
           "max_step_saves_to_keep": 2,
           "push_to_hub": False
         },
@@ -48,7 +45,7 @@ config_data = {
         ],
         "train": {
           "batch_size": 1,
-          "steps": 3000,
+          "steps": 10,
           "gradient_accumulation_steps": 1,
           "train_unet": True,
           "train_text_encoder": False,
@@ -71,7 +68,7 @@ config_data = {
         },
         "sample": {
           "sampler": "flowmatch",
-          "sample_every": 250,
+          "sample_every": 10,
           "width": 1024,
           "height": 1024,
           "prompts": [],
@@ -90,9 +87,8 @@ config_data = {
   }
 }
 
-async def prepare_config():
+async def prepare_config(taskId):
     try:
-      taskId = os.getenv('TASK_ID')
       print("Preparing config")
       task = get_client()['tasks'].find_one({"_id": ObjectId(taskId)})
 
@@ -176,5 +172,5 @@ async def store_dataset(datasetUrls, taskId, dataset_folder_path):
         await asyncio.gather(*tasks)
 
     
-if __name__ == '__main__':
-    asyncio.run(prepare_config())
+# if __name__ == '__main__':
+#     asyncio.run(prepare_config())
