@@ -25,7 +25,7 @@ config_data = {
         },
         "save": {
           "dtype": "float16",
-          "save_every": 10,
+          "save_every": 3000,
           "max_step_saves_to_keep": 2,
           "push_to_hub": False
         },
@@ -45,7 +45,7 @@ config_data = {
         ],
         "train": {
           "batch_size": 1,
-          "steps": 10,
+          "steps": 3000,
           "gradient_accumulation_steps": 1,
           "train_unet": True,
           "train_text_encoder": False,
@@ -68,7 +68,7 @@ config_data = {
         },
         "sample": {
           "sampler": "flowmatch",
-          "sample_every": 10,
+          "sample_every": 3000,
           "width": 1024,
           "height": 1024,
           "prompts": [],
@@ -105,9 +105,9 @@ async def prepare_config(taskId):
       prompt = ''
 
       if (task['metadata']['gender'] == 'female'):
-           prompt = f"A nice picture of {taskId} a woman, close lookup, nice dress, nice gray background"
+           prompt = f"A nice picture of {taskId} a woman, close lookup, portrait mode, close upper body, nice dress, nice gray background"
       else: 
-           prompt = f"A nice picture of {taskId} a man, close lookup, nice clothes, nice gray background"
+           prompt = f"A nice picture of {taskId} a man, close lookup, nice clothes, portrait mode, close upper body, nice gray background"
           
 
       config_data['config']['name'] = taskId
