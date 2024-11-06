@@ -20,7 +20,15 @@ if os.environ.get("DEBUG_TOOLKIT", "0") == "1":
     torch.autograd.set_detect_anomaly(True)
 import argparse
 from toolkit.job import get_job
+from my_scripts.connect_mongo import get_client
+from bson.objectid import ObjectId
+import datetime 
 
+import asyncio
+from bson.objectid import ObjectId
+from my_scripts.prepare_config import prepare_config
+from my_scripts.upload_to_r2 import CloudflareR2Service
+import time
 
 def print_end_message(jobs_completed, jobs_failed):
     failure_string = f"{jobs_failed} failure{'' if jobs_failed == 1 else 's'}" if jobs_failed > 0 else ""
@@ -38,6 +46,11 @@ def print_end_message(jobs_completed, jobs_failed):
 
 def main():
     parser = argparse.ArgumentParser()
+
+    taskId = os.getenv("TASK_ID")
+
+    # asyncio.run(prepare_config(taskId))
+
 
     # require at lease one config file
     parser.add_argument(
@@ -78,13 +91,143 @@ def main():
             job.run()
             job.cleanup()
             jobs_completed += 1
+
+            taskId = os.getenv("TASK_ID")
+            task = get_client()['tasks'].find_one({"_id": ObjectId(taskId)})
+            model = get_client()['models'].find_one({"taskId": ObjectId(taskId)})
+
+            # check if need to upload lora
+            loraKey = f"{task['userId']}/{model['_id']}.safetensors"
+            cloudflare_service = CloudflareR2Service()
+
+            if (task['result'] is None):
+                file_path = f"{os.getenv('ROOT_FOLDER')}/output/{taskId}/{taskId}.safetensors"
+
+                if os.path.exists(file_path):
+                    print("File exists.")
+                else:
+                    print("File does not exist.")
+                    raise 
+
+                buffer = get_file_as_buffer(file_path)
+
+
+                cloudflare_service.store_file(
+                    bucket_name='loras',
+                    content_type='TENSOR',
+                    key=loraKey,
+                    buffer=buffer
+                )
+            for attempt in range(3):
+                try:
+                    # Attempt to update the task in the database
+                    get_client()['tasks'].update_one(
+                        {"_id": ObjectId(taskId)}, 
+                        {
+                            "$set": {
+                                "processingStatus": 'completed',  
+                                "updatedAt": datetime.datetime.now(),
+                                "progress": 100,
+                                "completed": True,
+                                "processingCompletedAt": datetime.datetime.now(),
+                                "result": {
+                                    "completedIn": int((datetime.datetime.now() - task['processingStartedAt']).total_seconds() * 1000),
+                                    "modelUrl": f"https://loras.cheeryclick.com/{loraKey}",
+                                    "locationInfo": {
+                                        "bucketName": "loras",
+                                        "optimizedKeys": [],
+                                        "originalKeys": [loraKey]
+                                    }
+                                },
+                            }
+                        }
+                    )
+                    print("Update successful.")
+                    return  # Exit function if the update was successful
+
+                except Exception as e:
+                    print(f"Attempt {attempt + 1} failed with error: {e}")
+                    if attempt < 3 - 1:
+                        time.sleep(5)  # Wait before retrying
+                    else:
+                        print("All retries failed.")
+                        raise  # Re-raise the exception after all retries have failed
+                    get_client()['tasks'].update_one({"_id": ObjectId(taskId)}, {
+                        "$set": {
+                            "processingStatus": 'completed',  
+                            "updatedAt": datetime.datetime.now(),
+                            "progress": 100,
+                            "completed": True,
+                            "processingCompletedAt": datetime.datetime.now(),
+                            "result": {
+                                "completedIn": int((datetime.datetime.now() - task['processingStartedAt']).total_seconds() * 1000),
+                                "modelUrl": f"https://loras.cheeryclick.com/{loraKey}",
+                                "locationInfo": {
+                                    "bucketName":"loras",
+                                    "optimizedKeys":[],
+                                    "originalKeys":[loraKey]
+                                }
+                            },
+                        }
+                    })
+                for attempt in range(3):
+                    try:
+                        # Attempt to update the task in the database
+                        get_client()['models'].update_one({"_id": ObjectId(model['_id'])}, {
+                            "$set": {
+                                "status": 'ready',  
+                            }
+                        })
+                        print("Update successful.")
+                        return  # Exit function if the update was successful
+
+                    except Exception as e:
+                        print(f"Attempt {attempt + 1} failed with error: {e}")
+                        if attempt < 3 - 1:
+                            time.sleep(5)  # Wait before retrying
+                        else:
+                            print("All retries failed.")
+                            raise  # Re-raise the exception after all retries have failed
+                        get_client()['models'].update_one({"_id": ObjectId(model['_id'])}, {
+                            "$set": {
+                                "status": 'ready',  
+                            }
+                        })
+
+
         except Exception as e:
             print(f"Error running job: {e}")
             jobs_failed += 1
             if not args.recover:
                 print_end_message(jobs_completed, jobs_failed)
+                taskId = os.getenv("TASK_ID")
+                task = get_client()['tasks'].find_one({"_id": ObjectId(taskId)})
+
+                if task is None:
+                    raise ValueError(f"Task with ID '{taskId}' not found.")
+
+                get_client()['tasks'].update_one({"_id": ObjectId(taskId)}, {
+                    "$set": {
+                        "processingStatus": 'failed',  
+                        "updatedAt": datetime.datetime.now(),  
+                        "processingCompletedAt":  datetime.datetime.now(),
+                        "completed": False,
+                        "trainingLog": e
+                    }
+                })
+                get_client()['models'].update_one({"taskId": ObjectId(taskId)}, {
+                    "$set": {
+                        "status": 'failed',  
+                    }
+                })             
+
                 raise e
 
 
 if __name__ == '__main__':
     main()
+
+def get_file_as_buffer(file_path):
+    with open(file_path, 'rb') as file:
+        buffer = file.read()
+    return buffer

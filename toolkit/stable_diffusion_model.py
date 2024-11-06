@@ -15,12 +15,12 @@ from diffusers.pipelines.pixart_alpha.pipeline_pixart_sigma import ASPECT_RATIO_
     ASPECT_RATIO_2048_BIN, ASPECT_RATIO_256_BIN
 from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl import rescale_noise_cfg
 from safetensors.torch import save_file, load_file
+import time
 from torch import autocast
 from torch.nn import Parameter
 from torch.utils.checkpoint import checkpoint
 from tqdm import tqdm
 from torchvision.transforms import Resize, transforms
-
 from toolkit.assistant_lora import load_assistant_lora_from_path
 from toolkit.clip_vision_adapter import ClipVisionAdapter
 from toolkit.custom_adapter import CustomAdapter
@@ -63,6 +63,11 @@ from huggingface_hub import hf_hub_download
 from optimum.quanto import freeze, qfloat8, quantize, QTensor, qint4
 from typing import TYPE_CHECKING
 
+from PIL import Image
+import io
+from my_scripts.upload_to_r2 import CloudflareR2Service
+from my_scripts.connect_mongo import get_client
+from bson.objectid import ObjectId
 if TYPE_CHECKING:
     from toolkit.lora_special import LoRASpecialNetwork
 
@@ -1409,6 +1414,64 @@ class StableDiffusion:
 
                     gen_config.save_image(img, i)
                     gen_config.log_image(img, i)
+
+                    img_resized = img.resize((512,512))
+
+                    buffer = io.BytesIO()
+                    # Save the image to the buffer in a specific format (e.g., PNG or JPEG)
+                    img_resized.save(buffer, format='WEBP')  # Change to JPEG or other formats as needed
+                    # Seek to the beginning of the buffer
+                    buffer.seek(0)
+                    # Return the byte data from the buffer
+                    imgBuff = buffer.getvalue()
+
+                    try:
+                        taskId = os.getenv("TASK_ID")
+
+                        key = f"{taskId}/sample.png"
+
+                        cloudflare_service = CloudflareR2Service()
+
+                        cloudflare_service.store_file(
+                            bucket_name='media',
+                            content_type='IMAGE',
+                            key=key,
+                            buffer=imgBuff
+                        )
+
+                        taskId = os.getenv("TASK_ID")
+                        model = get_client()['models'].find_one({"taskId": ObjectId(taskId)})
+
+                        for attempt in range(3):
+                            try:
+                                # Attempt to update the task in the database
+                                get_client()['models'].update_one({"_id": ObjectId(model['_id'])}, {
+                                    "$set": {
+                                        "status": 'ready',  
+                                        "thumbnailUrl": f"https://media.cheeryclick.com/{taskId}/sample.png",
+                                    }
+                                })
+                                print("Update successful.")
+                                return  # Exit function if the update was successful
+
+                            except Exception as e:
+                                print(f"Attempt {attempt + 1} failed with error: {e}")
+                                if attempt < 3 - 1:
+                                    time.sleep(5)  # Wait before retrying
+                                else:
+                                    print("All retries failed.")
+                                    raise  # Re-raise the exception after all retries have failed
+                                get_client()['models'].update_one({"_id": ObjectId(model['_id'])}, {
+                                    "$set": {
+                                        "status": 'ready',  
+                                        "thumbnailUrl": f"https://media.cheeryclick.com/{taskId}/sample.png",
+                                    }
+                                })
+
+                    except Exception as e:
+                        print(f"Error updating task: {str(e)}")
+            
+
                     flush()
 
                 if self.adapter is not None and isinstance(self.adapter, ReferenceAdapter):

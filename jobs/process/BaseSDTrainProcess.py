@@ -58,6 +58,10 @@ from tqdm import tqdm
 from toolkit.config_modules import SaveConfig, LoggingConfig, SampleConfig, NetworkConfig, TrainConfig, ModelConfig, \
     GenerateImageConfig, EmbeddingConfig, DatasetConfig, preprocess_dataset_raw_config, AdapterConfig, GuidanceConfig
 from toolkit.logging import create_logger
+from my_scripts.connect_mongo import get_client
+from my_scripts.upload_to_r2 import CloudflareR2Service
+from bson.objectid import ObjectId
+import datetime
 
 def flush():
     torch.cuda.empty_cache()
@@ -420,6 +424,7 @@ class BaseSDTrainProcess(BaseTrainProcess):
         filename = f'{self.job.name}{step_num}.safetensors'
         file_path = os.path.join(self.save_root, filename)
 
+
         save_meta = copy.deepcopy(self.meta)
         # get extra meta
         if self.adapter is not None and isinstance(self.adapter, CustomAdapter):
@@ -450,6 +455,53 @@ class BaseSDTrainProcess(BaseTrainProcess):
                     metadata=save_meta,
                     extra_state_dict=embedding_dict
                 )
+
+                if (step is None):
+                    try:
+                        taskId = os.getenv("TASK_ID")
+                        task = get_client()['tasks'].find_one({"_id": ObjectId(taskId)})
+                        model = get_client()['models'].find_one({"taskId": ObjectId(taskId)})
+
+                        key = f"{task['userId']}/{model['_id']}.safetensors"
+                        file_path = f"{os.getenv('ROOT_FOLDER')}/output/{taskId}/{taskId}.safetensors"
+
+                        buffer = get_file_as_buffer(file_path)
+
+                        cloudflare_service = CloudflareR2Service()
+
+                        cloudflare_service.store_file(
+                            bucket_name='loras',
+                            content_type='TENSOR',
+                            key=key,
+                            buffer=buffer
+                        )
+
+                        
+
+                        if (task):
+                            get_client()['tasks'].update_one({"_id": ObjectId(taskId)}, {
+                                "$set": {
+                                    "processingStatus": 'completed',  
+                                    "updatedAt": datetime.datetime.now(),
+                                    "completed": True,
+                                    "processingCompletedAt": datetime.datetime.now(),
+                                    "result": {
+                                        "completedIn": int((datetime.datetime.now() - task['processingStartedAt']).total_seconds() * 1000),
+                                        "modelUrl": f"https://loras.cheeryclick.com/{key}",
+                                        "locationInfo": {
+                                            "bucketName":"loras",
+                                            "optimizedKeys":[],
+                                            "originalKeys":[key]
+                                        }
+                                    },
+                                    "progress": 100,
+
+                                }
+                            })
+                    except Exception as e:
+                        print(f"Error updating task: {str(e)}")
+            
+
                 self.network.multiplier = prev_multiplier
                 # if we have an embedding as well, pair it with the network
 
@@ -1837,8 +1889,27 @@ class BaseSDTrainProcess(BaseTrainProcess):
                 # commit log
                 self.logger.commit(step=self.step_num)
 
+                self.progress_bar
+
+                try:
+                    taskId = os.getenv("TASK_ID")
+                    task = get_client()['tasks'].find_one({"_id": ObjectId(taskId)})
+
+                    if (task):
+                        get_client()['tasks'].update_one({"_id": ObjectId(taskId)}, {
+                            "$set": {
+                                "processingStatus": 'inProgress',  
+                                "updatedAt": datetime.datetime.now(),
+                                "progress": round(step * 100 / 3000, 2)
+                            }
+                        })
+                except Exception as e:
+                    print(f"Error updating task: {str(e)}")
+
                 # sets progress bar to match out step
                 self.progress_bar.update(step - self.progress_bar.n)
+
+
 
                 #############################
                 # End of step
@@ -1859,8 +1930,12 @@ class BaseSDTrainProcess(BaseTrainProcess):
         if not self.train_config.disable_sampling:
             self.sample(self.step_num)
             self.logger.commit(step=self.step_num)
-        print("")
         self.save()
+
+        print("Storing LORA")
+
+
+        
         self.logger.finish()
 
         if self.save_config.push_to_hub:
@@ -2016,3 +2091,8 @@ For more details, including weighting, merging and fusing LoRAs, check the [docu
 
 """
         return readme_content
+
+def get_file_as_buffer(file_path):
+    with open(file_path, 'rb') as file:
+        buffer = file.read()
+    return buffer

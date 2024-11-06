@@ -1,28 +1,27 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "Run current config",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/run.py",
-            "args": [
-                "${file}"
-            ],
-            "env": {
-                "CUDA_LAUNCH_BLOCKING": "1",
-                "DEBUG_TOOLKIT": "1"
-            },
-            "console": "integratedTerminal",
-            "justMyCode": false
-        },
-        {
-            "name": "Python: Debug Current File",
-            "type": "python",
-            "request": "launch",
-            "program": "${file}",
-            "console": "integratedTerminal",
-            "justMyCode": false
-        },
-    ]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run current config",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/run.py",
+      "args": ["config/6729e4c8ce6b62c1d535314d.yml"],
+      "env": {
+        "CUDA_LAUNCH_BLOCKING": "1",
+        "DEBUG_TOOLKIT": "1",
+        "TASK_ID": "6729e4c8ce6b62c1d535314d"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": false
+    },
+    {
+      "name": "Python: Debug Current File",
+      "type": "python",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "justMyCode": false
+    }
+  ]
 }
