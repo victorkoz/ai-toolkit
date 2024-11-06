@@ -24,9 +24,7 @@ from my_scripts.connect_mongo import get_client
 from bson.objectid import ObjectId
 import datetime 
 
-import asyncio
 from bson.objectid import ObjectId
-from my_scripts.prepare_config import prepare_config
 from my_scripts.upload_to_r2 import CloudflareR2Service
 import time
 
@@ -48,8 +46,6 @@ def main():
     parser = argparse.ArgumentParser()
 
     taskId = os.getenv("TASK_ID")
-
-    # asyncio.run(prepare_config(taskId))
 
 
     # require at lease one config file

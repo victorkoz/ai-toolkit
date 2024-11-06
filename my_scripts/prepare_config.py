@@ -8,7 +8,7 @@ import aiohttp
 from bson.objectid import ObjectId
 
 load_dotenv()
-from my_scripts.connect_mongo import get_client
+from connect_mongo import get_client
 
 # Define the YAML structure as a Python dictionary
 config_data = {
@@ -90,8 +90,9 @@ config_data = {
   }
 }
 
-async def prepare_config(taskId):
+async def prepare_config():
     try:
+      taskId = os.getenv('TASK_ID')
       print("Preparing config")
       task = get_client()['tasks'].find_one({"_id": ObjectId(taskId)})
 
@@ -175,3 +176,5 @@ async def store_dataset(datasetUrls, taskId, dataset_folder_path):
         await asyncio.gather(*tasks)
 
     
+if __name__ == '__main__':
+    asyncio.run(prepare_config())
