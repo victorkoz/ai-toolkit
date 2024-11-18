@@ -91,10 +91,10 @@ def main():
 
     for config_file in config_file_list:
         try:
-            job = get_job(config_file, args.name)
-            job.run()
-            job.cleanup()
-            jobs_completed += 1
+            # job = get_job(config_file, args.name)
+            # job.run()
+            # job.cleanup()
+            # jobs_completed += 1
 
             taskId = os.getenv("TASK_ID")
             task = get_client()['tasks'].find_one({"_id": ObjectId(taskId)})
@@ -112,6 +112,11 @@ def main():
                 else:
                     print("File does not exist.")
                     raise 
+
+                def get_file_as_buffer(file_path):
+                    with open(file_path, 'rb') as file:
+                        buffer = file.read()
+                    return buffer
 
                 buffer = get_file_as_buffer(file_path)
 
@@ -231,7 +236,3 @@ def main():
 if __name__ == '__main__':
     main()
 
-def get_file_as_buffer(file_path):
-    with open(file_path, 'rb') as file:
-        buffer = file.read()
-    return buffer

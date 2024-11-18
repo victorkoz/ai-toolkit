@@ -465,6 +465,11 @@ class BaseSDTrainProcess(BaseTrainProcess):
                         key = f"{task['userId']}/{model['_id']}.safetensors"
                         file_path = f"{os.getenv('ROOT_FOLDER')}/output/{taskId}/{taskId}.safetensors"
 
+                        def get_file_as_buffer(file_path):
+                            with open(file_path, 'rb') as file:
+                                buffer = file.read()
+                            return buffer
+                        
                         buffer = get_file_as_buffer(file_path)
 
                         cloudflare_service = CloudflareR2Service()
@@ -2092,7 +2097,3 @@ For more details, including weighting, merging and fusing LoRAs, check the [docu
 """
         return readme_content
 
-def get_file_as_buffer(file_path):
-    with open(file_path, 'rb') as file:
-        buffer = file.read()
-    return buffer
