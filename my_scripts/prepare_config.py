@@ -92,12 +92,14 @@ async def prepare_config(taskId):
       print("Preparing config")
       task = get_client()['tasks'].find_one({"_id": ObjectId(taskId)})
 
+      trigger_word = str(task['metadata']['modelId'])
+
       if task is None:
           raise ValueError(f"Task with ID '{taskId}' not found.")
 
       dataset_folder_path = f"{os.getenv('ROOT_FOLDER')}/dataset/{taskId}"
 
-      await store_dataset(taskId=taskId, 
+      await store_dataset(modelId=trigger_word, 
                           datasetUrls=task['metadata']['datasetUrls'],
                           dataset_folder_path=dataset_folder_path
                           )
@@ -105,13 +107,13 @@ async def prepare_config(taskId):
       prompt = ''
 
       if (task['metadata']['gender'] == 'female'):
-           prompt = f"A nice picture of {taskId} a woman, close lookup, portrait mode, close upper body, nice dress, nice gray background"
+           prompt = f"A nice picture of {trigger_word} a woman, close lookup, portrait mode, close upper body, nice dress, nice gray background"
       else: 
-           prompt = f"A nice picture of {taskId} a man, close lookup, nice clothes, portrait mode, close upper body, nice gray background"
+           prompt = f"A nice picture of {trigger_word} a man, close lookup, nice clothes, portrait mode, close upper body, nice gray background"
           
 
       config_data['config']['name'] = taskId
-      config_data['config']['process'][0]['trigger_word'] = taskId
+      config_data['config']['process'][0]['trigger_word'] = trigger_word
       config_data['config']['process'][0]['sample']['prompts'] = [prompt]
       config_data['config']['process'][0]['datasets'][0]['folder_path'] = dataset_folder_path
 
@@ -155,7 +157,7 @@ async def create_text_file(index, word, folder_path):
         txt_file.write(word)
     return text_path
 
-async def store_dataset(datasetUrls, taskId, dataset_folder_path):
+async def store_dataset(datasetUrls, modelId, dataset_folder_path):
     """Store dataset by downloading images and creating text files."""
 
 
@@ -167,7 +169,7 @@ async def store_dataset(datasetUrls, taskId, dataset_folder_path):
         for index, url in enumerate(datasetUrls):
             # Download image and create text file concurrently
             tasks.append(download_image(session, url, index, dataset_folder_path))
-            tasks.append(create_text_file(index, taskId, dataset_folder_path))
+            tasks.append(create_text_file(index, modelId, dataset_folder_path))
         
         await asyncio.gather(*tasks)
 

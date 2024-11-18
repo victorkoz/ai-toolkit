@@ -6,11 +6,11 @@
       "type": "python",
       "request": "launch",
       "program": "${workspaceFolder}/run.py",
-      "args": ["config/6729e4c8ce6b62c1d535314d.yml"],
+      "args": ["config/672b25606737073f52a347fb.yml"],
       "env": {
         "CUDA_LAUNCH_BLOCKING": "1",
         "DEBUG_TOOLKIT": "1",
-        "TASK_ID": "6729e4c8ce6b62c1d535314d"
+        "TASK_ID": "672b25606737073f52a347fb"
       },
       "console": "integratedTerminal",
       "justMyCode": false
