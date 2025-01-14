@@ -25,7 +25,7 @@ config_data = {
         },
         "save": {
           "dtype": "float16",
-          "save_every": 3000,
+          "save_every": 2500,
           "max_step_saves_to_keep": 2,
           "push_to_hub": False
         },
@@ -45,7 +45,7 @@ config_data = {
         ],
         "train": {
           "batch_size": 1,
-          "steps": 3000,
+          "steps": 2500,
           "gradient_accumulation_steps": 1,
           "train_unet": True,
           "train_text_encoder": False,
@@ -68,7 +68,7 @@ config_data = {
         },
         "sample": {
           "sampler": "flowmatch",
-          "sample_every": 3000,
+          "sample_every": 2500,
           "width": 1024,
           "height": 1024,
           "prompts": [],
